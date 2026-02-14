@@ -12,41 +12,38 @@ jobs:
       - name: Setup Arduino CLI
         uses: arduino/setup-arduino-cli@v2
 
-      - name: Install Spacehuhn Deauther SDK
+      - name: Install Deauther Core
         run: |
           arduino-cli core update-index --additional-urls https://raw.githubusercontent.com/SpacehuhnTech/arduino/main/package_spacehuhn_index.json
           arduino-cli core install deauther:esp8266 --additional-urls https://raw.githubusercontent.com/SpacehuhnTech/arduino/main/package_spacehuhn_index.json
 
       - name: Install Libraries
         run: |
-          # 1. Install Library OLED (Otomatis masuk ke folder library default)
+          # Install library standar via CLI
           arduino-cli lib install "Adafruit SSD1306"
           arduino-cli lib install "Adafruit GFX Library"
           arduino-cli lib install "Adafruit BusIO"
           arduino-cli lib install "SimpleCLI"
-          
-          # 2. Setup folder library tambahan di dalam workspace agar tidak 'Permission Denied'
-          # Kita gunakan folder di dalam workspace GitHub runner
-          LIB_PATH="$GITHUB_WORKSPACE/libraries"
-          mkdir -p "$LIB_PATH"
-          
-          # 3. Ekstrak ArduinoJson v5 (Wajib versi 5 untuk kodingan GMpro)
-          if [ -f "ArduinoJson-5.13.5.zip" ]; then
-            unzip -o ArduinoJson-5.13.5.zip -d "$LIB_PATH"
-          else
-            # Jika file zip tidak ada di repo, install versi 5 secara otomatis
-            arduino-cli lib install "ArduinoJson"@5.13.5
-          fi
+          # Paksa versi 5.x untuk ArduinoJson agar tidak konflik dengan versi 6/7
+          arduino-cli lib install "ArduinoJson"@5.13.5
 
       - name: Compile GMpro Firmware
         run: |
-          # Beritahu compiler lokasi library tambahan kita
-          USER_LIB=$(arduino-cli config dump | grep 'user:' | awk '{print $2}')/libraries
+          # 1. Cari file .ino secara otomatis di seluruh direktori
+          SKETCH_PATH=$(find . -name "*.ino" | head -n 1)
           
+          if [ -z "$SKETCH_PATH" ]; then
+            echo "Error: File .ino tidak ditemukan!"
+            exit 1
+          fi
+          
+          echo "Menemukan sketch di: $SKETCH_PATH"
+          
+          # 2. Jalankan kompilasi
+          # --libraries diisi dengan direktori 'libraries' jika kamu punya folder lib lokal di repo
           arduino-cli compile --fqbn deauther:esp8266:generic:eesz=4M2M \
-          --libraries "$USER_LIB" \
-          --libraries "$GITHUB_WORKSPACE/libraries" \
-          ./GMpro.ino --output-dir ./build
+          "$SKETCH_PATH" \
+          --output-dir ./build
 
       - name: Upload Binary
         uses: actions/upload-artifact@v4
