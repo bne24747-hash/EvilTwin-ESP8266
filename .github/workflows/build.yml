@@ -1,3 +1,30 @@
+name: Compile GMpro Deauther Fixed Library
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install Deauther Core
+        run: |
+          arduino-cli core update-index --additional-urls https://raw.githubusercontent.com/SpacehuhnTech/arduino/main/package_spacehuhn_index.json
+          arduino-cli core install deauther:esp8266 --additional-urls https://raw.githubusercontent.com/SpacehuhnTech/arduino/main/package_spacehuhn_index.json
+
+      - name: Install Libraries
+        run: |
+          arduino-cli lib install "Adafruit SSD1306"
+          arduino-cli lib install "Adafruit GFX Library"
+          arduino-cli lib install "Adafruit BusIO"
+          arduino-cli lib install "SimpleCLI"
+          arduino-cli lib install "ArduinoJson"@5.13.5
+
       - name: Compile GMpro Firmware
         run: |
           # 1. Cari file .ino secara otomatis
@@ -10,11 +37,17 @@
           fi
           
           echo "Menemukan sketch di: $SKETCH_PATH"
-          echo "Direktori sketch: $SKETCH_DIR"
+          echo "Direktori sketch (untuk library lokal): $SKETCH_DIR"
 
-          # 2. Jalankan kompilasi dengan menyertakan direktori sketch sebagai library
-          # Ini agar file .h seperti EEPROMHelper.h ikut terbaca
+          # 2. Kompilasi dengan menyertakan direktori sketch sebagai library tambahan
+          # Ini kunci supaya EEPROMHelper.h dan file lainnya ketemu
           arduino-cli compile --fqbn deauther:esp8266:generic:eesz=4M2M \
-          --library "$SKETCH_DIR" \
+          --libraries "$SKETCH_DIR" \
           "$SKETCH_PATH" \
           --output-dir ./build
+
+      - name: Upload Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: GMpro-Deauther-Binary
+          path: ./build/*.bin
